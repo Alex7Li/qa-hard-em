@@ -12,32 +12,37 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-"""PyTorch optimization for BERT model."""
-
+"""PyTorch optimization for BERT model.
+Adapted from https://huggingface.co/transformers/v2.2.0/_modules/transformers/optimization.html
+"""
 import math
 import torch
 from torch.optim import Optimizer
 from torch.nn.utils import clip_grad_norm_
 
+
 def warmup_cosine(x, warmup=0.002):
     if x < warmup:
-        return x/warmup
+        return x / warmup
     return 0.5 * (1.0 + torch.cos(math.pi * x))
+
 
 def warmup_constant(x, warmup=0.002):
     if x < warmup:
-        return x/warmup
+        return x / warmup
     return 1.0
+
 
 def warmup_linear(x, warmup=0.002):
     if x < warmup:
-        return x/warmup
+        return x / warmup
     return 1.0 - x
 
+
 SCHEDULES = {
-    'warmup_cosine':warmup_cosine,
-    'warmup_constant':warmup_constant,
-    'warmup_linear':warmup_linear,
+    'warmup_cosine': warmup_cosine,
+    'warmup_constant': warmup_constant,
+    'warmup_linear': warmup_linear,
 }
 
 
@@ -55,6 +60,7 @@ class BERTAdam(Optimizer):
         weight_decay_rate: Weight decay. Default: 0.01
         max_grad_norm: Maximum norm for the gradients (-1 means no clipping). Default: 1.0
     """
+
     def __init__(self, params, lr, warmup=-1, t_total=-1, schedule='warmup_linear',
                  b1=0.9, b2=0.999, e=1e-6, weight_decay_rate=0.01,
                  max_grad_norm=1.0):
@@ -84,7 +90,7 @@ class BERTAdam(Optimizer):
                     return [0]
                 if group['t_total'] != -1:
                     schedule_fct = SCHEDULES[group['schedule']]
-                    lr_scheduled = group['lr'] * schedule_fct(state['step']/group['t_total'], group['warmup'])
+                    lr_scheduled = group['lr'] * schedule_fct(state['step'] / group['t_total'], group['warmup'])
                 else:
                     lr_scheduled = group['lr']
                 lr.append(lr_scheduled)
@@ -144,7 +150,7 @@ class BERTAdam(Optimizer):
 
                 if group['t_total'] != -1:
                     schedule_fct = SCHEDULES[group['schedule']]
-                    lr_scheduled = group['lr'] * schedule_fct(state['step']/group['t_total'], group['warmup'])
+                    lr_scheduled = group['lr'] * schedule_fct(state['step'] / group['t_total'], group['warmup'])
                 else:
                     lr_scheduled = group['lr']
 
@@ -152,9 +158,5 @@ class BERTAdam(Optimizer):
                 p.data.add_(-update_with_lr)
 
                 state['step'] += 1
-
-                # step_size = lr_scheduled * math.sqrt(bias_correction2) / bias_correction1
-                # bias_correction1 = 1 - beta1 ** state['step']
-                # bias_correction2 = 1 - beta2 ** state['step']
 
         return loss

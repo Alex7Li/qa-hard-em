@@ -1,27 +1,25 @@
-import os
-import pickle as pkl
 import json
 import collections
+import json
 import math
-import six
-import time
+
 import numpy as np
-import tokenization
-from collections import defaultdict
+import six
 from tqdm import tqdm
-from evaluation_script import normalize_answer, f1_score, exact_match_score
+
+import tokenization
+from evaluation_script import f1_score, exact_match_score
 
 rawResult = collections.namedtuple("RawResult",
-                                  ["unique_id", "start_logits", "end_logits"])
+                                   ["unique_id", "start_logits", "end_logits"])
 _NbestPrediction = collections.namedtuple(  # pylint: disable=invalid-name
-           "NbestPrediction", ["text", "logit", "no_answer_logit"])
+    "NbestPrediction", ["text", "logit", "no_answer_logit"])
 
 
 def write_predictions(logger, all_examples, all_features, all_results, n_best_size,
                       do_lower_case, output_prediction_file,
                       output_nbest_file, verbose_logging,
                       write_prediction=True, n_paragraphs=None):
-
     """Write final predictions to the json file."""
 
     example_index_to_features = collections.defaultdict(list)
@@ -33,8 +31,8 @@ def write_predictions(logger, all_examples, all_features, all_results, n_best_si
         unique_id_to_result[result.unique_id] = result
 
     _PrelimPrediction = collections.namedtuple(  # pylint: disable=invalid-name
-       "PrelimPrediction",
-       ["paragraph_index", "feature_index", "start_index", "end_index", "logit", "no_answer_logit"])
+        "PrelimPrediction",
+        ["paragraph_index", "feature_index", "start_index", "end_index", "logit", "no_answer_logit"])
 
     all_predictions = collections.OrderedDict()
     all_nbest_json = collections.OrderedDict()
@@ -46,11 +44,11 @@ def write_predictions(logger, all_examples, all_features, all_results, n_best_si
 
     for (example_index, example) in all_examples:
         features = example_index_to_features[example_index]
-        if len(features)==0 and n_paragraphs is None:
+        if len(features) == 0 and n_paragraphs is None:
             pred = _NbestPrediction(
-                        text="empty",
-                        logit=-1000,
-                        no_answer_logit=1000)
+                text="empty",
+                logit=-1000,
+                no_answer_logit=1000)
             all_predictions[example.qas_id] = ("empty", example.all_answers)
             all_nbest_json[example.qas_id] = [pred]
             continue
@@ -60,7 +58,7 @@ def write_predictions(logger, all_examples, all_features, all_results, n_best_si
 
         if n_paragraphs is None:
             results = sorted(enumerate(features),
-                         key=lambda f: unique_id_to_result[f[1].unique_id].switch[3])[:1]
+                             key=lambda f: unique_id_to_result[f[1].unique_id].switch[3])[:1]
         else:
             results = enumerate(features)
         for (feature_index, feature) in results:
@@ -69,8 +67,8 @@ def write_predictions(logger, all_examples, all_features, all_results, n_best_si
             start_logits = result.start_logits[:len(feature.tokens)]
             end_logits = result.end_logits[:len(feature.tokens)]
             for (i, s) in enumerate(start_logits):
-                for (j, e) in enumerate(end_logits[i:i+10]):
-                    scores.append(((i, i+j), s+e))
+                for (j, e) in enumerate(end_logits[i:i + 10]):
+                    scores.append(((i, i + j), s + e))
 
             scores = sorted(scores, key=lambda x: x[1], reverse=True)
 
@@ -89,24 +87,24 @@ def write_predictions(logger, all_examples, all_features, all_results, n_best_si
                 if end_index < start_index:
                     continue
                 prelim_predictions.append(
-                   _PrelimPrediction(
-                       paragraph_index=feature.paragraph_index,
-                       feature_index=feature_index,
-                       start_index=start_index,
-                       end_index=end_index,
-                       logit=-result.switch[3], #score,
-                       no_answer_logit=result.switch[3]))
+                    _PrelimPrediction(
+                        paragraph_index=feature.paragraph_index,
+                        feature_index=feature_index,
+                        start_index=start_index,
+                        end_index=end_index,
+                        logit=-result.switch[3],  # score
+                        no_answer_logit=result.switch[3]))
                 if n_paragraphs is None:
-                    if write_predictions and len(prelim_predictions)>=n_best_size:
+                    if write_predictions and len(prelim_predictions) >= n_best_size:
                         break
                     elif not write_predictions:
                         break
                 cnt += 1
 
         prelim_predictions = sorted(
-                prelim_predictions,
-                key=lambda x: x.logit,
-                reverse=True)
+            prelim_predictions,
+            key=lambda x: x.logit,
+            reverse=True)
         no_answer_logit = result.switch[3]
 
         def get_nbest_json(prelim_predictions):
@@ -142,7 +140,6 @@ def write_predictions(logger, all_examples, all_features, all_results, n_best_si
                     final_text = get_final_text(tok_text, orig_text, do_lower_case, \
                                                 logger, verbose_logging)
 
-
                 if final_text in seen_predictions:
                     continue
 
@@ -156,7 +153,7 @@ def write_predictions(logger, all_examples, all_features, all_results, n_best_si
             # just create a nonce prediction in this case to avoid failure.
             if not nbest:
                 nbest.append(
-                _NbestPrediction(text="empty", logit=0.0, no_answer_logit=no_answer_logit))
+                    _NbestPrediction(text="empty", logit=0.0, no_answer_logit=no_answer_logit))
 
             assert len(nbest) >= 1
 
@@ -176,6 +173,7 @@ def write_predictions(logger, all_examples, all_features, all_results, n_best_si
 
             assert len(nbest_json) >= 1
             return nbest_json
+
         if n_paragraphs is None:
             nbest_json = get_nbest_json(prelim_predictions)
             all_predictions[example.qas_id] = (nbest_json[0]["text"], example.all_answers)
@@ -185,7 +183,7 @@ def write_predictions(logger, all_examples, all_features, all_results, n_best_si
             all_nbest_json[example.qas_id] = []
             for n in n_paragraphs:
                 nbest_json = get_nbest_json([pred for pred in prelim_predictions if \
-                                             pred.paragraph_index<n])
+                                             pred.paragraph_index < n])
                 all_predictions[example.qas_id].append(nbest_json[0]["text"])
             all_predictions[example.qas_id].append(example.all_answers)
 
@@ -202,7 +200,7 @@ def write_predictions(logger, all_examples, all_features, all_results, n_best_si
     if n_paragraphs is None:
         f1s, ems = [], []
         for prediction, groundtruth in all_predictions.values():
-            if len(groundtruth)==0:
+            if len(groundtruth) == 0:
                 f1s.append(0)
                 ems.append(0)
                 continue
@@ -214,7 +212,7 @@ def write_predictions(logger, all_examples, all_features, all_results, n_best_si
         for predictions in all_predictions.values():
             groundtruth = predictions[-1]
             predictions = predictions[:-1]
-            if len(groundtruth)==0:
+            if len(groundtruth) == 0:
                 for i in range(len(n_paragraphs)):
                     f1s[i].append(0)
                     ems[i].append(0)
@@ -223,12 +221,14 @@ def write_predictions(logger, all_examples, all_features, all_results, n_best_si
                 f1s[i].append(max([f1_score(prediction, gt)[0] for gt in groundtruth]))
                 ems[i].append(max([exact_match_score(prediction, gt) for gt in groundtruth]))
         for n, f1s_, ems_ in zip(n_paragraphs, f1s, ems):
-            logger.info("n=%d\tF1 %.2f\tEM %.2f"%(n, np.mean(f1s_)*100, np.mean(ems_)*100))
+            logger.info("n=%d\tF1 %.2f\tEM %.2f" % (n, np.mean(f1s_) * 100, np.mean(ems_) * 100))
         final_f1, final_em = np.mean(f1s[-1]), np.mean(ems[-1])
     return final_em, final_f1
 
+
 def get_final_text(pred_text, orig_text, do_lower_case, logger, verbose_logging):
     """Project the tokenized prediction back to the original text."""
+
     def _strip_spaces(text):
         ns_chars = []
         ns_to_s_map = collections.OrderedDict()
@@ -262,7 +262,7 @@ def get_final_text(pred_text, orig_text, do_lower_case, logger, verbose_logging)
     if len(orig_ns_text) != len(tok_ns_text):
         if verbose_logging:
             logger.info("Length not equal after stripping spaces: '%s' vs '%s'",
-                            orig_ns_text, tok_ns_text)
+                        orig_ns_text, tok_ns_text)
         return orig_text
 
     # We then project the characters in `pred_text` back to `orig_text` using

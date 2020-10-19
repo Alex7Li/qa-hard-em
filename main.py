@@ -49,10 +49,10 @@ def main():
     parser = argparse.ArgumentParser()
     BERT_DIR = "uncased_L-12_H-768_A-12/"
     ## Required parameters
-    parser.add_argument("--bert_config_file", default=BERT_DIR+"bert_config.json", \
+    parser.add_argument("--bert_config_file", default=BERT_DIR + "bert_config.json", \
                         type=str, help="The config json file corresponding to the pre-trained BERT model. "
-                             "This specifies the model architecture.")
-    parser.add_argument("--vocab_file", default=BERT_DIR+"vocab.txt", type=str, \
+                                       "This specifies the model architecture.")
+    parser.add_argument("--vocab_file", default=BERT_DIR + "vocab.txt", type=str, \
                         help="The vocabulary file that the BERT model was trained on.")
     parser.add_argument("--output_dir", default="out", type=str, \
                         help="The output directory where the model checkpoints will be written.")
@@ -67,7 +67,7 @@ def main():
                         default="/home/sewon/data/squad/dev-v1.1.json")
     parser.add_argument("--init_checkpoint", type=str,
                         help="Initial checkpoint (usually from a pre-trained BERT model).", \
-                        default=BERT_DIR+"pytorch_model.bin")
+                        default=BERT_DIR + "pytorch_model.bin")
     parser.add_argument("--do_lower_case", default=True, action='store_true',
                         help="Whether to lower case the input text. Should be True for uncased "
                              "models and False for cased models.")
@@ -101,7 +101,8 @@ def main():
                              "A number of warnings are expected for a normal SQuAD evaluation.")
     parser.add_argument("--no_cuda", default=False, action='store_true', help="Whether not to use CUDA when available")
     parser.add_argument("--local_rank", type=int, default=-1, help="local_rank for distributed training on gpus")
-    parser.add_argument("--accumulate_gradients", type=int, default=1, help="Number of steps to accumulate gradient on (divide the batch_size and accumulate)")
+    parser.add_argument("--accumulate_gradients", type=int, default=1,
+                        help="Number of steps to accumulate gradient on (divide the batch_size and accumulate)")
     parser.add_argument('--seed', type=int, default=42, help="random seed for initialization")
     parser.add_argument('--gradient_accumulation_steps', type=int, default=1,
                         help="Number of updates steps to accumualte before performing a backward/update pass.")
@@ -116,7 +117,7 @@ def main():
     parser.add_argument('--tau', type=float, default=12000.0)
 
     # For evaluation
-    parser.add_argument('--prefix', type=str, default="") #500
+    parser.add_argument('--prefix', type=str, default="")  # 500
     parser.add_argument('--debug', action="store_true", default=False)
 
     args = parser.parse_args()
@@ -127,10 +128,10 @@ def main():
         os.makedirs(args.output_dir, exist_ok=True)
 
     logging.basicConfig(format='%(asctime)s - %(levelname)s - %(name)s - %(message)s',
-                    datefmt='%m/%d/%Y %H:%M:%S',
-                    level=logging.INFO,
-                    handlers=[logging.FileHandler(os.path.join(args.output_dir, "log.txt")),
-                              logging.StreamHandler()])
+                        datefmt='%m/%d/%Y %H:%M:%S',
+                        level=logging.INFO,
+                        handlers=[logging.FileHandler(os.path.join(args.output_dir, "log.txt")),
+                                  logging.StreamHandler()])
     logger = logging.getLogger(__name__)
     logger.info(args)
 
@@ -146,8 +147,7 @@ def main():
 
     if args.accumulate_gradients < 1:
         raise ValueError("Invalid accumulate_gradients parameter: {}, should be >= 1".format(
-                            args.accumulate_gradients))
-
+            args.accumulate_gradients))
 
     args.train_batch_size = int(args.train_batch_size / args.accumulate_gradients)
 
@@ -155,6 +155,7 @@ def main():
     np.random.seed(args.seed)
     torch.manual_seed(args.seed)
     if n_gpu > 0:
+        print(f"Using {n_gpu} gpus")
         torch.cuda.manual_seed_all(args.seed)
 
     if not args.do_train and not args.do_predict:
@@ -181,10 +182,8 @@ def main():
             "was only trained up to sequence length %d" %
             (args.max_seq_length, bert_config.max_position_embeddings))
 
-
     model = BertForQuestionAnswering(bert_config, device, 4, loss_type=args.loss_type, tau=args.tau)
     metric_name = "EM"
-
 
     tokenizer = tokenization.FullTokenizer(
         vocab_file=args.vocab_file, do_lower_case=args.do_lower_case)
@@ -196,24 +195,24 @@ def main():
         n_train_files = len(args.train_file.split(','))
 
     eval_dataloader, eval_examples, eval_features, _ = get_dataloader(
-                logger=logger, args=args,
-                input_file=args.predict_file,
-                is_training=False,
-                batch_size=args.predict_batch_size,
-                num_epochs=1,
-                tokenizer=tokenizer)
+        logger=logger, args=args,
+        input_file=args.predict_file,
+        is_training=False,
+        batch_size=args.predict_batch_size,
+        num_epochs=1,
+        tokenizer=tokenizer)
 
     if args.do_train:
         train_file = args.train_file
         if train_split:
             train_file = args.train_file.split(',')[0]
         train_dataloader, _, _, num_train_steps = get_dataloader(
-                logger=logger, args=args, \
-                input_file=train_file, \
-                is_training=True,
-                batch_size=args.train_batch_size,
-                num_epochs=args.num_train_epochs,
-                tokenizer=tokenizer)
+            logger=logger, args=args,
+            input_file=train_file,
+            is_training=True,
+            batch_size=args.train_batch_size,
+            num_epochs=args.num_train_epochs,
+            tokenizer=tokenizer)
 
     if args.init_checkpoint is not None:
         logger.info("Loading from {}".format(args.init_checkpoint))
@@ -222,29 +221,28 @@ def main():
             model.bert.load_state_dict(state_dict)
         else:
             filter = lambda x: x[7:] if x.startswith('module.') else x
-            state_dict = {filter(k):v for (k,v) in state_dict.items()}
+            state_dict = {filter(k): v for (k, v) in state_dict.items()}
             model.load_state_dict(state_dict)
     model.to(device)
 
     if args.local_rank != -1:
         model = torch.nn.parallel.DistributedDataParallel(model, device_ids=[args.local_rank],
-                                                        output_device=args.local_rank)
+                                                          output_device=args.local_rank)
     elif n_gpu > 1:
         model = torch.nn.DataParallel(model)
 
     if args.do_train:
+        print("Starting training")
         no_decay = ['bias', 'gamma', 'beta']
         optimizer_parameters = [
             {'params': [p for n, p in model.named_parameters() if n not in no_decay], 'weight_decay_rate': 0.01},
             {'params': [p for n, p in model.named_parameters() if n in no_decay], 'weight_decay_rate': 0.0}
-            ]
+        ]
 
         optimizer = BERTAdam(optimizer_parameters,
-                            lr=args.learning_rate,
-                            warmup=args.warmup_proportion,
-                            t_total=num_train_steps)
-
-        global_step = 0
+                             lr=args.learning_rate,
+                             warmup=args.warmup_proportion,
+                             t_total=num_train_steps)
 
         best_f1 = (-1, -1)
         wait_step = 0
@@ -254,40 +252,40 @@ def main():
         train_losses = []
 
         for epoch in range(int(args.num_train_epochs)):
-            if epoch>0 and train_split:
-                train_file = args.train_file.split(',')[epoch%n_train_files]
+            if epoch > 0 and train_split:
+                train_file = args.train_file.split(',')[epoch % n_train_files]
                 train_dataloader = get_dataloader(
-                        logger=logger, args=args, \
-                        input_file=train_file, \
-                        is_training=True,
-                        batch_size=args.train_batch_size,
-                        num_epochs=args.num_train_epochs,
-                        tokenizer=tokenizer)[0]
+                    logger=logger, args=args,
+                    input_file=train_file,
+                    is_training=True,
+                    batch_size=args.train_batch_size,
+                    num_epochs=args.num_train_epochs,
+                    tokenizer=tokenizer)[0]
 
             for step, batch in enumerate(train_dataloader):
                 global_step += 1
                 batch = [t.to(device) for t in batch]
                 loss = model(batch, global_step)
                 if n_gpu > 1:
-                    loss = loss.mean() # mean() to average on multi-gpu.
+                    loss = loss.mean()  # mean() to average on multi-gpu.
                 if args.gradient_accumulation_steps > 1:
                     loss = loss / args.gradient_accumulation_steps
                 train_losses.append(loss.detach().cpu())
                 loss.backward()
                 if global_step % args.gradient_accumulation_steps == 0:
-                    optimizer.step()    # We have accumulated enought gradients
+                    optimizer.step()  # We have accumulated enough gradients
                     model.zero_grad()
                 if global_step % args.eval_period == 0:
                     model.eval()
-                    f1 =  predict(logger, args, model, eval_dataloader, eval_examples, eval_features, \
-                                  device, write_prediction=False)
+                    f1 = predict(logger, args, model, eval_dataloader, eval_examples, eval_features,
+                                 device, write_prediction=False)
                     logger.info("Step %d Train loss %.2f EM %.2f F1 %.2f on epoch=%d" % (
-                        global_step, np.mean(train_losses), f1[0]*100, f1[1]*100, epoch))
+                        global_step, np.mean(train_losses), f1[0] * 100, f1[1] * 100, epoch))
                     train_losses = []
                     if best_f1 < f1:
                         logger.info("Saving model with best %s: %.2f (F1 %.2f) -> %.2f (F1 %.2f) on epoch=%d" % \
-                                (metric_name, best_f1[0]*100, best_f1[1]*100, f1[0]*100, f1[1]*100, epoch))
-                        model_state_dict = {k:v.cpu() for (k, v) in model.state_dict().items()}
+                                    (metric_name, best_f1[0] * 100, best_f1[1] * 100, f1[0] * 100, f1[1] * 100, epoch))
+                        model_state_dict = {k: v.cpu() for (k, v) in model.state_dict().items()}
                         torch.save(model_state_dict, os.path.join(args.output_dir, "best-model.pt"))
                         model = model.to(device)
                         best_f1 = f1
@@ -304,16 +302,16 @@ def main():
         logger.info("Training finished!")
 
     elif args.do_predict:
-        if type(model)==list:
+        if type(model) == list:
             model = [m.eval() for m in model]
         else:
             model.eval()
-        f1 = predict(logger, args, model, eval_dataloader, eval_examples, eval_features,
+        predict(logger, args, model, eval_dataloader, eval_examples, eval_features,
                      device,
-                     varying_n_paragraphs=len(args.n_paragraphs)>1)
+                     varying_n_paragraphs=len(args.n_paragraphs) > 1)
 
 
-def predict(logger, args, model, eval_dataloader, eval_examples, eval_features, device, \
+def predict(logger, args, model, eval_dataloader, eval_examples, eval_features, device,
             write_prediction=True, varying_n_paragraphs=False):
     all_results = []
 
@@ -325,7 +323,7 @@ def predict(logger, args, model, eval_dataloader, eval_examples, eval_features, 
         batch_to_feed = [t.to(device) for t in batch[:-1]]
         with torch.no_grad():
             batch_start_logits, batch_end_logits, batch_switch = model(batch_to_feed)
-            assert len(batch_start_logits)==len(batch_end_logits)==len(batch_switch)
+            assert len(batch_start_logits) == len(batch_end_logits) == len(batch_switch)
         for i, example_index in enumerate(example_indices):
             start_logits = batch_start_logits[i].detach().cpu().tolist()
             end_logits = batch_end_logits[i].detach().cpu().tolist()
@@ -333,22 +331,22 @@ def predict(logger, args, model, eval_dataloader, eval_examples, eval_features, 
             eval_feature = eval_features[example_index.item()]
             unique_id = int(eval_feature.unique_id)
             all_results.append(RawResult(unique_id=unique_id,
-                                        start_logits=start_logits,
-                                        end_logits=end_logits,
-                                        switch=switch))
+                                         start_logits=start_logits,
+                                         end_logits=end_logits,
+                                         switch=switch))
 
-    output_prediction_file = os.path.join(args.output_dir, args.prefix+"predictions.json")
-    output_nbest_file = os.path.join(args.output_dir, args.prefix+"nbest_predictions.json")
+    output_prediction_file = os.path.join(args.output_dir, args.prefix + "predictions.json")
+    output_nbest_file = os.path.join(args.output_dir, args.prefix + "nbest_predictions.json")
     f1 = write_predictions(logger, eval_examples, eval_features, all_results,
-                    args.n_best_size if write_prediction else 1,
-                    args.do_lower_case,
-                    output_prediction_file if write_prediction else None,
-                    output_nbest_file if write_prediction else None,
-                    args.verbose,
-                    write_prediction=write_prediction,
-                    n_paragraphs=None if not varying_n_paragraphs else [int(n) for n in args.n_paragraphs.split(',')])
+                           args.n_best_size if write_prediction else 1,
+                           args.do_lower_case,
+                           output_prediction_file if write_prediction else None,
+                           output_nbest_file if write_prediction else None,
+                           args.verbose,
+                           write_prediction=write_prediction,
+                           n_paragraphs=None if not varying_n_paragraphs else [int(n) for n in
+                                                                               args.n_paragraphs.split(',')])
     return f1
-
 
 
 if __name__ == "__main__":

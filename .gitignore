@@ -1,0 +1,6 @@
+.idea
+
+/preprocessed-open-domain-qa-data
+/uncased_L-12_H-768_A-12
+
+best-narrativeqa-model.pt

@@ -8,23 +8,22 @@ from tqdm import tqdm
 import numpy as np
 import nltk
 import torch
-from torch.utils.data import DataLoader, RandomSampler, SequentialSampler
 from torch.utils.data.distributed import DistributedSampler
 from tokenization import BasicTokenizer
 
 from prepro_util import *
 from DataLoader import MyDataLoader
 
-def get_dataloader(logger, args, input_file, is_training, \
-                   batch_size, num_epochs, tokenizer, index=None):
 
+def get_dataloader(logger, args, input_file, is_training,
+                   batch_size, num_epochs, tokenizer, index=None):
     n_paragraphs = args.n_paragraphs
 
     if (not is_training) and ',' in n_paragraphs:
         n_paragraphs = n_paragraphs.split(',')[-1]
 
     feature_save_path = input_file.replace('.json', '-{}-{}-{}.pkl'.format(
-            args.max_seq_length, n_paragraphs, args.max_n_answers))
+        args.max_seq_length, n_paragraphs, args.max_n_answers))
 
     if os.path.exists(feature_save_path):
         logger.info("Loading saved features from {}".format(feature_save_path))
@@ -33,7 +32,6 @@ def get_dataloader(logger, args, input_file, is_training, \
             train_features = features['features']
             examples = features.get('examples', None)
     else:
-
         examples = read_squad_examples(
             logger=logger, args=args, input_file=input_file, debug=args.debug)
 
@@ -121,10 +119,11 @@ def read_squad_examples(logger, args, input_file, debug):
 
         for (char_to_word_offset, answers) in zip(char_to_word_offset_list, entry['answers']):
 
-            if len(answers)==0:
+            if len(answers) == 0:
                 original_answers, start_positions, end_positions, switches = [""], [0], [0], [3]
             else:
-                original_answers, start_positions, end_positions = [[a[key] for a in answers] for key in ['text', 'word_start', 'word_end']]
+                original_answers, start_positions, end_positions = [[a[key] for a in answers] for key in
+                                                                    ['text', 'word_start', 'word_end']]
                 switches = [0 for _ in answers]
             original_answers_list.append(original_answers)
             start_positions_list.append(start_positions)
@@ -132,28 +131,29 @@ def read_squad_examples(logger, args, input_file, debug):
             switches_list.append(switches)
 
         examples.append(SquadExample(
-                qas_id=entry['id'],
-                question_text=entry['question'],
-                doc_tokens=entry['context'],
-                paragraph_indices=list(range(len(entry['context']))),
-                orig_answer_text=original_answers_list,
-                all_answers=entry['final_answers'],
-                start_position=start_positions_list,
-                end_position=end_positions_list,
-                switch=switches_list))
+            qas_id=entry['id'],
+            question_text=entry['question'],
+            doc_tokens=entry['context'],
+            paragraph_indices=list(range(len(entry['context']))),
+            orig_answer_text=original_answers_list,
+            all_answers=entry['final_answers'],
+            start_position=start_positions_list,
+            end_position=end_positions_list,
+            switch=switches_list))
     if "test" in input_file:
         return examples
     n_answers = []
     for example in examples:
-        has_answer=False
+        has_answer = False
         for switches in example.switch:
-            assert 0 in switches or switches==[3]
+            assert 0 in switches or switches == [3]
             if 0 in switches:
                 n_answers.append(len(switches))
-    logger.info("# answers  = %.1f %.1f %.1f %.1f" %(
+    logger.info("# answers  = %.1f %.1f %.1f %.1f" % (
         np.mean(n_answers), np.median(n_answers),
         np.percentile(n_answers, 95), np.percentile(n_answers, 99)))
     return examples
+
 
 def convert_examples_to_features(logger, args, examples, tokenizer, max_seq_length,
                                  doc_stride, max_query_length, max_n_answers, is_training):
@@ -177,12 +177,13 @@ def convert_examples_to_features(logger, args, examples, tokenizer, max_seq_leng
             query_tokens = query_tokens[0:max_query_length]
 
         assert len(example.doc_tokens) == len(example.orig_answer_text) == \
-            len(example.start_position) == len(example.end_position) == len(example.switch)
+               len(example.start_position) == len(example.end_position) == len(example.switch)
 
-        current_features =  []
+        current_features = []
 
-        for (paragraph_index, doc_tokens, original_answer_text_list, start_position_list, end_position_list, switch_list) in \
-                zip(example.paragraph_indices, example.doc_tokens, example.orig_answer_text, example.start_position, \
+        for (paragraph_index, doc_tokens, original_answer_text_list,
+             start_position_list, end_position_list, switch_list) in \
+                zip(example.paragraph_indices, example.doc_tokens, example.orig_answer_text, example.start_position,
                     example.end_position, example.switch):
             tok_to_orig_index = []
             orig_to_tok_index = []
@@ -196,8 +197,8 @@ def convert_examples_to_features(logger, args, examples, tokenizer, max_seq_leng
             tok_start_positions, tok_end_positions = [], []
 
             if is_training:
-                for (orig_answer_text, start_position, end_position) in zip( \
-                            original_answer_text_list, start_position_list, end_position_list):
+                for (orig_answer_text, start_position, end_position) in zip(
+                        original_answer_text_list, start_position_list, end_position_list):
                     tok_start_position = orig_to_tok_index[start_position]
                     if end_position < len(doc_tokens) - 1:
                         tok_end_position = orig_to_tok_index[end_position + 1] - 1
@@ -208,12 +209,11 @@ def convert_examples_to_features(logger, args, examples, tokenizer, max_seq_leng
                         orig_answer_text)
                     tok_start_positions.append(tok_start_position)
                     tok_end_positions.append(tok_end_position)
-                to_be_same = [len(original_answer_text_list), \
-                                    len(start_position_list), len(end_position_list),
-                                    len(switch_list), \
-                                    len(tok_start_positions), len(tok_end_positions)]
-                assert all([x==to_be_same[0] for x in to_be_same])
-
+                to_be_same = [len(original_answer_text_list),
+                              len(start_position_list), len(end_position_list),
+                              len(switch_list),
+                              len(tok_start_positions), len(tok_end_positions)]
+                assert all([x == to_be_same[0] for x in to_be_same])
 
             # The -3 accounts for [CLS], [SEP] and [SEP]
             max_tokens_for_doc = max_seq_length - len(query_tokens) - 3
@@ -253,7 +253,7 @@ def convert_examples_to_features(logger, args, examples, tokenizer, max_seq_leng
                     token_to_orig_map[len(tokens)] = tok_to_orig_index[split_token_index]
 
                     is_max_context = _check_is_max_context(doc_spans, doc_span_index,
-                                                        split_token_index)
+                                                           split_token_index)
                     token_is_max_context[len(tokens)] = is_max_context
                     tokens.append(all_doc_tokens[split_token_index])
                     segment_ids.append(1)
@@ -274,10 +274,10 @@ def convert_examples_to_features(logger, args, examples, tokenizer, max_seq_leng
                 switches = []
                 answer_mask = []
                 if is_training:
-                    for (orig_answer_text, start_position, end_position, switch, \
-                                tok_start_position, tok_end_position) in zip(\
-                                original_answer_text_list, start_position_list, end_position_list, \
-                                switch_list, tok_start_positions, tok_end_positions):
+                    for (orig_answer_text, start_position, end_position, switch,
+                         tok_start_position, tok_end_position) in zip(
+                            original_answer_text_list, start_position_list, end_position_list,
+                            switch_list, tok_start_positions, tok_end_positions):
                         if orig_answer_text not in ['yes', 'no'] or switch == 3:
                             # For training, if our document chunk does not contain an annotation
                             # we throw it out, since there is nothing to predict.
@@ -296,7 +296,7 @@ def convert_examples_to_features(logger, args, examples, tokenizer, max_seq_leng
                         end_positions.append(end_position)
                         switches.append(switch)
                     to_be_same = [len(start_positions), len(end_positions), len(switches)]
-                    assert all([x==to_be_same[0] for x in to_be_same])
+                    assert all([x == to_be_same[0] for x in to_be_same])
 
                     if sum(to_be_same) == 0:
                         start_positions = [0]
@@ -309,7 +309,7 @@ def convert_examples_to_features(logger, args, examples, tokenizer, max_seq_leng
                         end_positions = end_positions[:max_n_answers]
                         switches = switches[:max_n_answers]
                     answer_mask = [1 for _ in range(len(start_positions))]
-                    for _ in range(max_n_answers-len(start_positions)):
+                    for _ in range(max_n_answers - len(start_positions)):
                         start_positions.append(0)
                         end_positions.append(0)
                         switches.append(0)
@@ -335,8 +335,9 @@ def convert_examples_to_features(logger, args, examples, tokenizer, max_seq_leng
                 unique_id += 1
         features.append(current_features)
 
-    logger.info("# of features per paragraph: %.1f"%(np.mean(truncated)))
+    logger.info("# of features per paragraph: %.1f" % (np.mean(truncated)))
     return features
+
 
 def _improve_answer_span(doc_tokens, input_start, input_end, tokenizer,
                          orig_answer_text):
@@ -410,4 +411,3 @@ def _check_is_max_context(doc_spans, cur_span_index, position):
             best_span_index = span_index
 
     return cur_span_index == best_span_index
-

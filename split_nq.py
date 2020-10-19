@@ -1,13 +1,10 @@
-import os
-import csv
-import json
-import gzip
 import argparse
+import gzip
+import json
+import os
 
 import numpy as np
-
 from tqdm import tqdm
-from collections import Counter, defaultdict
 
 title_s = "<title>"
 title_e = "</title>"

@@ -12,7 +12,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-"""PyTorch BERT model."""
+"""PyTorch BERT model. Adapted from https://huggingface.co/transformers/v2.10.0/_modules/transformers/modeling_bert.html"""
 
 from __future__ import absolute_import
 from __future__ import division
@@ -23,9 +23,10 @@ import json
 import math
 import six
 import torch
-import  numpy
+import numpy
 import torch.nn as nn
 from torch.nn import CrossEntropyLoss
+
 
 def gelu(x):
     """Implementation of the gelu activation function.
@@ -38,18 +39,19 @@ def gelu(x):
 class BertConfig(object):
     """Configuration class to store the configuration of a `BertModel`.
     """
+
     def __init__(self,
-                vocab_size,
-                hidden_size=768,
-                num_hidden_layers=12,
-                num_attention_heads=12,
-                intermediate_size=3072,
-                hidden_act="gelu",
-                hidden_dropout_prob=0.1,
-                attention_probs_dropout_prob=0.1,
-                max_position_embeddings=512,
-                type_vocab_size=16,
-                initializer_range=0.02):
+                 vocab_size,
+                 hidden_size=768,
+                 num_hidden_layers=12,
+                 num_attention_heads=12,
+                 intermediate_size=3072,
+                 hidden_act="gelu",
+                 hidden_dropout_prob=0.1,
+                 attention_probs_dropout_prob=0.1,
+                 max_position_embeddings=512,
+                 type_vocab_size=16,
+                 initializer_range=0.02):
         """Constructs BertConfig.
 
         Args:
@@ -125,6 +127,7 @@ class BERTLayerNorm(nn.Module):
         s = (x - u).pow(2).mean(-1, keepdim=True)
         x = (x - u) / torch.sqrt(s + self.variance_epsilon)
         return self.gamma * x + self.beta
+
 
 class BERTEmbeddings(nn.Module):
     def __init__(self, config):
@@ -257,6 +260,7 @@ class BERTOutput(nn.Module):
         hidden_states = self.LayerNorm(hidden_states + input_tensor)
         return hidden_states
 
+
 class BERTLayer(nn.Module):
     def __init__(self, config):
         super(BERTLayer, self).__init__()
@@ -269,6 +273,7 @@ class BERTLayer(nn.Module):
         intermediate_output = self.intermediate(attention_output)
         layer_output = self.output(intermediate_output, attention_output)
         return layer_output
+
 
 class BERTEncoder(nn.Module):
     def __init__(self, config):
@@ -283,6 +288,7 @@ class BERTEncoder(nn.Module):
             hidden_states = layer_module(hidden_states, attention_mask)
             all_encoder_layers.append(hidden_states)
         return all_encoder_layers
+
 
 class BERTPooler(nn.Module):
     def __init__(self, config):
@@ -316,6 +322,7 @@ class BertModel(nn.Module):
     all_encoder_layers, pooled_output = model(input_ids, token_type_ids, input_mask)
     ```
     """
+
     def __init__(self, config: BertConfig):
         """Constructor for BertModel.
 
@@ -345,7 +352,7 @@ class BertModel(nn.Module):
         # positions we want to attend and -10000.0 for masked positions.
         # Since we are adding it to the raw scores before the softmax, this is
         # effectively the same as removing these entirely.
-        extended_attention_mask = extended_attention_mask.to(dtype=next(self.parameters()).dtype) # fp16 compatibility
+        extended_attention_mask = extended_attention_mask.to(dtype=next(self.parameters()).dtype)  # fp16 compatibility
         extended_attention_mask = (1.0 - extended_attention_mask) * -10000.0
         embedding_output = self.embeddings(input_ids, token_type_ids)
         return self.encoder(embedding_output, extended_attention_mask)
@@ -356,9 +363,10 @@ class BertForQuestionAnswering(nn.Module):
     def __init__(self, config, device, n_class, loss_type, variant_id=0, tau=None):
         super(BertForQuestionAnswering, self).__init__()
         self.bert = BertModel(config)
-        self.qa_outputs = nn.Linear(config.hidden_size, 2) # [N, L, H] => [N, L, 2]
-        self.qa_classifier = nn.Linear(config.hidden_size, n_class) # [N, H] => [N, n_class]
+        self.qa_outputs = nn.Linear(config.hidden_size, 2)  # [N, L, H] => [N, L, 2]
+        self.qa_classifier = nn.Linear(config.hidden_size, n_class)  # [N, H] => [N, n_class]
         self.device = device
+
         def init_weights(module):
             if isinstance(module, (nn.Linear, nn.Embedding)):
                 module.weight.data.normal_(mean=0.0, std=config.initializer_range)
@@ -371,7 +379,7 @@ class BertForQuestionAnswering(nn.Module):
         self.apply(init_weights)
         self.loss_type = loss_type
         self.tau = tau
-        if self.loss_type=='hard-em':
+        if self.loss_type == 'hard-em':
             assert tau is not None
 
     def _forward(self, batch):
@@ -416,26 +424,25 @@ class BertForQuestionAnswering(nn.Module):
             # You care about the span only when switch is 0
             span_mask = answer_mask * (switch == 0).type(torch.FloatTensor).to(self.device)
 
-
             start_losses = [(loss_fct(start_logits, _start_positions) * _span_mask) \
                             for (_start_positions, _span_mask) \
                             in zip(torch.unbind(start_positions, dim=1), torch.unbind(span_mask, dim=1))]
             end_losses = [(loss_fct(end_logits, _end_positions) * _span_mask) \
-                            for (_end_positions, _span_mask) \
+                          for (_end_positions, _span_mask) \
                           in zip(torch.unbind(end_positions, dim=1), torch.unbind(span_mask, dim=1))]
             switch_losses = [(loss_fct(switch_logits, _switch) * _answer_mask) \
-                            for (_switch, _answer_mask) \
-                            in zip(torch.unbind(switch, dim=1), torch.unbind(answer_mask, dim=1))]
+                             for (_switch, _answer_mask) \
+                             in zip(torch.unbind(switch, dim=1), torch.unbind(answer_mask, dim=1))]
             assert len(start_losses) == len(end_losses) == len(switch_losses)
             loss_tensor = \
-                        torch.cat([t.unsqueeze(1) for t in start_losses], dim=1) + \
-                        torch.cat([t.unsqueeze(1) for t in end_losses], dim=1) + \
-                        torch.cat([t.unsqueeze(1) for t in switch_losses], dim=1)
+                torch.cat([t.unsqueeze(1) for t in start_losses], dim=1) + \
+                torch.cat([t.unsqueeze(1) for t in end_losses], dim=1) + \
+                torch.cat([t.unsqueeze(1) for t in switch_losses], dim=1)
 
-            if self.loss_type=='first-only':
-                total_loss = torch.sum(start_losses[0]+end_losses[0]+switch_losses[0])
+            if self.loss_type == 'first-only':
+                total_loss = torch.sum(start_losses[0] + end_losses[0] + switch_losses[0])
             elif self.loss_type == "hard-em":
-                if numpy.random.random()<min(global_step/self.tau, 0.8):
+                if numpy.random.random() < min(global_step / self.tau, 0.8):
                     total_loss = self._take_min(loss_tensor)
                 else:
                     total_loss = self._take_mml(loss_tensor)
@@ -453,8 +460,8 @@ class BertForQuestionAnswering(nn.Module):
 
     def _take_min(self, loss_tensor):
         return torch.sum(torch.min(
-            loss_tensor + 2*torch.max(loss_tensor)*(loss_tensor==0).type(torch.FloatTensor).to(self.device), 1)[0])
+            loss_tensor + 2 * torch.max(loss_tensor) * (loss_tensor == 0).type(torch.FloatTensor).to(self.device), 1)[
+                             0])
 
     def _take_mml(self, loss_tensor):
-        return -torch.sum(torch.log(torch.sum(torch.exp(-loss_tensor - 1e10 * (loss_tensor==0).float()), 1)))
-
+        return -torch.sum(torch.log(torch.sum(torch.exp(-loss_tensor - 1e10 * (loss_tensor == 0).float()), 1)))
