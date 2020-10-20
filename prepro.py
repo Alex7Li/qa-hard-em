@@ -1,18 +1,12 @@
-import os
-import json
-import pickle as pkl
-import tokenization
 import collections
+import json
+import os
+import pickle as pkl
+
 from tqdm import tqdm
 
-import numpy as np
-import nltk
-import torch
-from torch.utils.data.distributed import DistributedSampler
-from tokenization import BasicTokenizer
-
-from prepro_util import *
 from DataLoader import MyDataLoader
+from prepro_util import *
 
 
 def get_dataloader(logger, args, input_file, is_training,
@@ -78,9 +72,7 @@ def read_squad_examples(logger, args, input_file, debug):
     for _input_file in input_file.split(','):
         logger.info("Loading {}".format(_input_file))
         with open(_input_file, "r") as f:
-            this_data = [json.loads(line) for line in f.readlines()]
-            if debug:
-                this_data = this_data[:50]
+            this_data = [json.loads(line) for line in f.readlines(50 if debug else -1)]
             input_data += this_data
 
     def is_whitespace(c):
@@ -92,9 +84,7 @@ def read_squad_examples(logger, args, input_file, debug):
     if args.verbose:
         input_data = tqdm(input_data)
     for entry in input_data:
-
         doc_tokens_list1, char_to_word_offset_list = [], []
-
         for tokens in entry['context']:
             paragraph_text = ' '.join(tokens)
             doc_tokens = []
@@ -371,9 +361,9 @@ def _improve_answer_span(doc_tokens, input_start, input_end, tokenizer,
         for new_end in range(input_end, new_start - 1, -1):
             text_span = " ".join(doc_tokens[new_start:(new_end + 1)])
             if text_span == tok_answer_text:
-                return (new_start, new_end)
+                return new_start, new_end
 
-    return (input_start, input_end)
+    return input_start, input_end
 
 
 def _check_is_max_context(doc_spans, cur_span_index, position):

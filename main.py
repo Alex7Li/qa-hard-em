@@ -232,7 +232,6 @@ def main():
         model = torch.nn.DataParallel(model)
 
     if args.do_train:
-        print("Starting training")
         no_decay = ['bias', 'gamma', 'beta']
         optimizer_parameters = [
             {'params': [p for n, p in model.named_parameters() if n not in no_decay], 'weight_decay_rate': 0.01},
@@ -250,6 +249,7 @@ def main():
         global_step = 0
         stop_training = False
         train_losses = []
+        logger.info("Starting training")
 
         for epoch in range(int(args.num_train_epochs)):
             if epoch > 0 and train_split:
